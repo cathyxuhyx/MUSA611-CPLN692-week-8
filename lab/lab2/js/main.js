@@ -130,7 +130,6 @@ var goToOrigin = _.once(function(lat, lng) {
   map.flyTo([lat, lng], 14);
 });
 
-
 /* Given a lat and a long, we should create a marker, store it
  *  somewhere, and add it to the map
  */
@@ -142,11 +141,14 @@ var updatePosition = function(lat, lng, updated) {
   goToOrigin(lat, lng);
 };
 
+var ori_lat, ori_lng, dest_lat, dest_lng, route_geo;
 $(document).ready(function() {
   /* This 'if' check allows us to safely ask for the user's current position */
   if ("geolocation" in navigator) {
     navigator.geolocation.getCurrentPosition(function(position) {
-      updatePosition(position.coords.latitude, position.coords.longitude, position.timestamp);
+      ori_lat = position.coords.latitude;
+      ori_lng = position.coords.longitude;
+      updatePosition(ori_lat, ori_lng, position.timestamp);
     });
   } else {
     alert("Unable to access geolocation API!");
@@ -168,7 +170,43 @@ $(document).ready(function() {
   $("#calculate").click(function(e) {
     var dest = $('#dest').val();
     console.log(dest);
+    var access_token = "pk.eyJ1IjoiY2F0aGllZWUiLCJhIjoiY2s4dWxpbzdwMGNkNjNnbzNtbzlueXN1ZyJ9.ab8GaHyFNYPsjO7I7Gw4Fw";
+    // geocode the input address
+    $.ajax(`https://api.mapbox.com/geocoding/v5/mapbox.places/${dest}.json?access_token=${access_token}`).done(
+      function(data) {
+        //plot the destination marker
+        if (typeof(marker)!== "undefined") { map.removeLayer(marker); } //remove marker if already exists
+        var dest_geo = data.features[0];
+        dest_lat = dest_geo.center[1];
+        dest_lng = dest_geo.center[0];
+        marker = L.circleMarker([dest_lat,dest_lng], {color: "blue"});
+        marker.addTo(map);
+        
+        // find directions from origin to destination
+        $.ajax(`https://api.mapbox.com/directions/v5/mapbox/cycling/${ori_lng},${ori_lat};${dest_lng},${dest_lat}?access_token=${access_token}`).done(
+          function(data) {
+            //plot the route
+            if (typeof(route_geo_l)!== "undefined") { map.removeLayer(route_geo_l); } //remove route geometry if already exists
+            console.log(data.routes);
+            route = polyline.decode(data.routes[0].geometry);
+            reverse = _.map(route, function(lo) {return [lo[1],lo[0]];}); //need to remap the lat lng for turf functions
+            route_geo = turf.lineString(reverse, {name: "direction"});
+            route_geo_l = L.geoJSON(route_geo);
+            route_geo_l.addTo(map);
+
+            //display distance and duration (travel time)
+            $(".estimation").empty(); //clear estimation if already exists
+            duration = (data.routes[0].duration/60).toFixed(2);
+            distance = (data.routes[0].distance/1000).toFixed(2);
+            $(".sidebar").append(`<div class = "estimation"><br><br><a>The estimated travel time is ${duration} minutes.</a>
+              <br><br><a>The estimated distance is ${distance} km.</a></div>`);
+
+            //zoom to the route bbox
+            oldbound = turf.bbox(route_geo);
+            bounds = [[oldbound[1],oldbound[0]],[oldbound[3],oldbound[2]]];
+            map.fitBounds(bounds);
+          });
+      });
   });
 
 });
-
