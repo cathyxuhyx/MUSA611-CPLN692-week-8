@@ -181,7 +181,7 @@ $(document).ready(function() {
         dest_lng = dest_geo.center[0];
         marker = L.circleMarker([dest_lat,dest_lng], {color: "blue"});
         marker.addTo(map);
-        
+
         // find directions from origin to destination
         $.ajax(`https://api.mapbox.com/directions/v5/mapbox/cycling/${ori_lng},${ori_lat};${dest_lng},${dest_lat}?access_token=${access_token}`).done(
           function(data) {

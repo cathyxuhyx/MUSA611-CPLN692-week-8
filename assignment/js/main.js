@@ -48,6 +48,7 @@ var state = {
   line: undefined,
 };
 
+var ori_lng, ori_lat, dest_lat, dest_lng, tmp;
 /** ---------------
 Map configuration
 ---------------- */
@@ -87,13 +88,15 @@ function. That being said, you are welcome to make changes if it helps.
 ---------------- */
 
 var resetApplication = function() {
-  _.each(state.markers, function(marker) { map.removeLayer(marker) })
+  _.each(state.markers, function(marker) { map.removeLayer(marker);});
   map.removeLayer(state.line);
 
-  state.markers = []
+  state.markers = [];
   state.line = undefined;
   $('#button-reset').hide();
-}
+  map.setView( [42.378, -71.103],14);
+  $(".leaflet-draw-draw-marker").show();
+};
 
 $('#button-reset').click(resetApplication);
 
@@ -107,6 +110,31 @@ map.on('draw:created', function (e) {
   var type = e.layerType; // The type of shape
   var layer = e.layer; // The Leaflet layer for the shape
   var id = L.stamp(layer); // The unique Leaflet ID for the
-
+  marker = L.marker(layer._latlng);
+  marker.addTo(map);
+  state.markers.push(marker);
   console.log('Do something with the layer you just created:', layer, layer._latlng);
+
+  if (state.markers.length == 2) {
+    ori_lng = Number(state.markers[0]._latlng.lng);
+    ori_lat = Number(state.markers[0]._latlng.lat);
+    dest_lng = Number(state.markers[1]._latlng.lng);
+    dest_lat = Number(state.markers[1]._latlng.lat);
+    var access_token = "pk.eyJ1IjoiY2F0aGllZWUiLCJhIjoiY2s4dWxpbzdwMGNkNjNnbzNtbzlueXN1ZyJ9.ab8GaHyFNYPsjO7I7Gw4Fw";
+    $.ajax(`https://api.mapbox.com/optimized-trips/v1/mapbox/walking/${ori_lng},${ori_lat};${dest_lng},${dest_lat}?geometries=geojson&access_token=${access_token}`).done(
+      function(data) {
+        //plot the route
+        route_geo = data.trips[0].geometry;
+        route_geo_l = L.geoJSON(route_geo);
+        route_geo_l.addTo(map);
+        state.line = route_geo_l;
+
+        //zoom to the route bbox
+        oldbound = turf.bbox(route_geo);
+        bounds = [[oldbound[1],oldbound[0]],[oldbound[3],oldbound[2]]];
+        map.fitBounds(bounds);
+        $('#button-reset').show();
+        $(".leaflet-draw-draw-marker").hide();
+      });
+  }
 });
